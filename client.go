@@ -8,9 +8,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"time"
+
+	reuse "github.com/kavu/go_reuseport"
 )
 
 const (
@@ -20,7 +23,9 @@ const (
 
 // A Conn represents a connection to a DNS server.
 type Conn struct {
-	net.Conn                         // a net.Conn holding the connection
+	UDP            net.PacketConn // a net.PacketConn holding the connection
+	TCP            net.Conn
+	RemoteAddr     string            // server address that our client is connecting with
 	UDPSize        uint16            // minimum receive buffer for UDP messages
 	TsigSecret     map[string]string // secret(s) for Tsig map[<zonename>]<base64 secret>, zonename must be in canonical form (lowercase, fqdn, see RFC 4034 Section 6.2)
 	tsigRequestMAC string
@@ -28,15 +33,18 @@ type Conn struct {
 
 // A Client defines parameters for a DNS client.
 type Client struct {
-	Net       string      // if "tcp" or "tcp-tls" (DNS over TLS) a TCP query will be initiated, otherwise an UDP one (default is "" for UDP)
-	UDPSize   uint16      // minimum receive buffer for UDP messages
-	TLSConfig *tls.Config // TLS connection configuration
-	Dialer    *net.Dialer // a net.Dialer used to set local address, timeouts and more
+	Conn
+
+	Net          string      // if "tcp" or "tcp-tls" (DNS over TLS) a TCP query will be initiated, otherwise an UDP one (default is "" for UDP)
+	LocalAddr    string      // preferred address to dial from local machine
+	ExistingConn bool        // temporary field to test if connection exists
+	UDPSize      uint16      // minimum receive buffer for UDP messages
+	TLSConfig    *tls.Config // TLS connection configuration
+	Dialer       *net.Dialer // a net.Dialer used to set local address, timeouts and more
 	// Timeout is a cumulative timeout for dial, write and read, defaults to 0 (disabled) - overrides DialTimeout, ReadTimeout,
-	// WriteTimeout when non-zero. Can be overridden with net.Dialer.Timeout (see Client.ExchangeWithDialer and
-	// Client.Dialer) or context.Context.Deadline (see the deprecated ExchangeContext)
+	// WriteTimeout when non-zero.
 	Timeout        time.Duration
-	DialTimeout    time.Duration     // net.DialTimeout, defaults to 2 seconds, or net.Dialer.Timeout if expiring earlier - overridden by Timeout when that value is non-zero
+	DialTimeout    time.Duration     // net.DialTimeout, defaults to 2 seconds - overridden by Timeout when that value is non-zero
 	ReadTimeout    time.Duration     // net.Conn.SetReadTimeout value for connections, defaults to 2 seconds - overridden by Timeout when that value is non-zero
 	WriteTimeout   time.Duration     // net.Conn.SetWriteTimeout value for connections, defaults to 2 seconds - overridden by Timeout when that value is non-zero
 	TsigSecret     map[string]string // secret(s) for Tsig map[<zonename>]<base64 secret>, zonename must be in canonical form (lowercase, fqdn, see RFC 4034 Section 6.2)
@@ -80,34 +88,63 @@ func (c *Client) writeTimeout() time.Duration {
 
 // Dial connects to the address on the named network.
 func (c *Client) Dial(address string) (conn *Conn, err error) {
-	// create a new dialer with the appropriate timeout
-	var d net.Dialer
-	if c.Dialer == nil {
-		d = net.Dialer{Timeout: c.getTimeoutForRequest(c.dialTimeout())}
-	} else {
-		d = *c.Dialer
-	}
-
 	network := c.Net
 	if network == "" {
 		network = "udp"
 	}
-
-	useTLS := strings.HasPrefix(network, "tcp") && strings.HasSuffix(network, "-tls")
-
-	conn = new(Conn)
-	if useTLS {
-		network = strings.TrimSuffix(network, "-tls")
-
-		conn.Conn, err = tls.DialWithDialer(&d, network, address, c.TLSConfig)
-	} else {
-		conn.Conn, err = d.Dial(network, address)
+	// We shouldn't see clients ever changing the type of connection they are, so,
+	// if there's an existing UDP connection, we can reuse it.
+	// Simply set the remote address and return it to the user.
+	if network == "udp" {
+		if c.ExistingConn {
+			c.Conn.RemoteAddr = address
+			return &c.Conn, nil
+		}
+		var localAddr string
+		if c.LocalAddr != "" {
+			localAddr = c.LocalAddr
+		} else {
+			// get preferred IP address for local machine
+			initConn, err := net.Dial(network, "8.8.8.8:53")
+			if err != nil {
+				return nil, err
+			}
+			localAddr = initConn.LocalAddr().String()
+			initConn.Close()
+			c.LocalAddr = localAddr
+		}
+		conn = new(Conn)
+		// dial from local address
+		conn.UDP, err = reuse.NewReusablePortPacketConn(network, localAddr)
+		if err != nil {
+			log.Fatal("unable to create socket", err)
+			return nil, err
+		}
+		conn.RemoteAddr = address
+		c.ExistingConn = true
+		c.Conn = *conn
+		return conn, nil
+	} else { // tcp
+		useTLS := strings.HasPrefix(network, "tcp") && strings.HasSuffix(network, "-tls")
+		conn = new(Conn)
+		var d net.Dialer
+		if c.Dialer == nil {
+			d = net.Dialer{Timeout: c.getTimeoutForRequest(c.dialTimeout())}
+		} else {
+			d = *c.Dialer
+		}
+		if useTLS {
+			network = strings.TrimSuffix(network, "-tls")
+			conn.TCP, err = tls.DialWithDialer(&d, network, address, c.TLSConfig)
+		} else {
+			conn.TCP, err = d.Dial(network, address)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
+	panic("should never reach this state")
 }
 
 // Exchange performs a synchronous query. It sends the message m to the address
@@ -122,8 +159,6 @@ func (c *Client) Dial(address string) (conn *Conn, err error) {
 // returned. Specifically this means adding an EDNS0 OPT RR that will advertise a larger
 // buffer, see SetEdns0. Messages without an OPT RR will fallback to the historic limit
 // of 512 bytes
-// To specify a local address or a timeout, the caller has to set the `Client.Dialer`
-// attribute appropriately
 func (c *Client) Exchange(m *Msg, address string) (r *Msg, rtt time.Duration, err error) {
 	if !c.SingleInflight {
 		return c.exchange(m, address)
@@ -146,10 +181,9 @@ func (c *Client) exchange(m *Msg, a string) (r *Msg, rtt time.Duration, err erro
 
 	co, err = c.Dial(a)
 
-	if err != nil {
+	if err != nil || co == nil {
 		return nil, 0, err
 	}
-	defer co.Close()
 
 	opt := m.IsEdns0()
 	// If EDNS0 is used use that for size.
@@ -209,6 +243,31 @@ func (co *Conn) ReadMsg() (*Msg, error) {
 // ReadMsgHeader reads a DNS message, parses and populates hdr (when hdr is not nil).
 // Returns message as a byte slice to be parsed with Msg.Unpack later on.
 // Note that error handling on the message body is not possible as only the header is parsed.
+
+func (co *Conn) SetWriteDeadline(t time.Time) error {
+	if co.TCP != nil {
+		return co.TCP.SetWriteDeadline(t)
+	} else {
+		return co.UDP.SetWriteDeadline(t)
+	}
+}
+
+func (co *Conn) SetReadDeadline(t time.Time) error {
+	if co.TCP != nil {
+		return co.TCP.SetReadDeadline(t)
+	} else {
+		return co.UDP.SetReadDeadline(t)
+	}
+}
+
+func (co *Conn) Close() error {
+	if co.TCP != nil {
+		return co.TCP.Close()
+	} else {
+		return co.UDP.Close()
+	}
+}
+
 func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 	var (
 		p   []byte
@@ -216,21 +275,21 @@ func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 		err error
 	)
 
-	if _, ok := co.Conn.(net.PacketConn); ok {
+	if co.TCP != nil {
+		var length uint16
+		if err := binary.Read(co.TCP, binary.BigEndian, &length); err != nil {
+			return nil, err
+		}
+
+		p = make([]byte, length)
+		n, err = io.ReadFull(co.TCP, p)
+	} else {
 		if co.UDPSize > MinMsgSize {
 			p = make([]byte, co.UDPSize)
 		} else {
 			p = make([]byte, MinMsgSize)
 		}
 		n, err = co.Read(p)
-	} else {
-		var length uint16
-		if err := binary.Read(co.Conn, binary.BigEndian, &length); err != nil {
-			return nil, err
-		}
-
-		p = make([]byte, length)
-		n, err = io.ReadFull(co.Conn, p)
 	}
 
 	if err != nil {
@@ -252,24 +311,25 @@ func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 
 // Read implements the net.Conn read method.
 func (co *Conn) Read(p []byte) (n int, err error) {
-	if co.Conn == nil {
-		return 0, ErrConnEmpty
-	}
+	if co.TCP != nil {
+		var length uint16
+		if err := binary.Read(co.TCP, binary.BigEndian, &length); err != nil {
+			return 0, err
+		}
+		if int(length) > len(p) {
+			return 0, io.ErrShortBuffer
+		}
 
-	if _, ok := co.Conn.(net.PacketConn); ok {
-		// UDP connection
-		return co.Conn.Read(p)
-	}
+		return io.ReadFull(co.TCP, p[:length])
+	} else {
+		if co.UDP == nil {
+			return 0, ErrConnEmpty
+		}
 
-	var length uint16
-	if err := binary.Read(co.Conn, binary.BigEndian, &length); err != nil {
-		return 0, err
+		n, _, err = co.UDP.ReadFrom(p)
+		return n, err
 	}
-	if int(length) > len(p) {
-		return 0, io.ErrShortBuffer
-	}
-
-	return io.ReadFull(co.Conn, p[:length])
+	panic("should not reach")
 }
 
 // WriteMsg sends a message through the connection co.
@@ -300,16 +360,19 @@ func (co *Conn) Write(p []byte) (int, error) {
 	if len(p) > MaxMsgSize {
 		return 0, &Error{err: "message too large"}
 	}
-
-	if _, ok := co.Conn.(net.PacketConn); ok {
-		return co.Conn.Write(p)
+	if co.TCP != nil {
+		l := make([]byte, 2)
+		binary.BigEndian.PutUint16(l, uint16(len(p)))
+		n, err := (&net.Buffers{l, p}).WriteTo(co.TCP)
+		return int(n), err
+	} else {
+		dst, err := net.ResolveUDPAddr("udp", co.RemoteAddr)
+		if err != nil {
+			return 1, err
+		}
+		return co.UDP.WriteTo(p, dst)
 	}
-
-	l := make([]byte, 2)
-	binary.BigEndian.PutUint16(l, uint16(len(p)))
-
-	n, err := (&net.Buffers{l, p}).WriteTo(co.Conn)
-	return int(n), err
+	panic("should not reach")
 }
 
 // Return the appropriate timeout for a specific request
@@ -320,24 +383,27 @@ func (c *Client) getTimeoutForRequest(timeout time.Duration) time.Duration {
 	} else {
 		requestTimeout = timeout
 	}
-	// net.Dialer.Timeout has priority if smaller than the timeouts computed so
-	// far
-	if c.Dialer != nil && c.Dialer.Timeout != 0 {
-		if c.Dialer.Timeout < requestTimeout {
-			requestTimeout = c.Dialer.Timeout
-		}
-	}
+
 	return requestTimeout
 }
 
 // Dial connects to the address on the named network.
 func Dial(network, address string) (conn *Conn, err error) {
-	conn = new(Conn)
-	conn.Conn, err = net.Dial(network, address)
-	if err != nil {
-		return nil, err
+	if network == "" || network == "udp" {
+		conn = new(Conn)
+		conn.UDP, err = net.ListenPacket(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
+	} else {
+		conn = new(Conn)
+		conn.TCP, err = net.Dial(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
-	return conn, nil
 }
 
 // ExchangeContext performs a synchronous UDP query, like Exchange. It
@@ -362,7 +428,7 @@ func ExchangeContext(ctx context.Context, m *Msg, a string) (r *Msg, err error) 
 func ExchangeConn(c net.Conn, m *Msg) (r *Msg, err error) {
 	println("dns: ExchangeConn: this function is deprecated")
 	co := new(Conn)
-	co.Conn = c
+	co.UDP = c.(net.PacketConn)
 	if err = co.WriteMsg(m); err != nil {
 		return nil, err
 	}
@@ -375,7 +441,7 @@ func ExchangeConn(c net.Conn, m *Msg) (r *Msg, err error) {
 
 // DialTimeout acts like Dial but takes a timeout.
 func DialTimeout(network, address string, timeout time.Duration) (conn *Conn, err error) {
-	client := Client{Net: network, Dialer: &net.Dialer{Timeout: timeout}}
+	client := Client{Net: network, Timeout: timeout}
 	return client.Dial(address)
 }
 
@@ -393,7 +459,7 @@ func DialTimeoutWithTLS(network, address string, tlsConfig *tls.Config, timeout 
 	if !strings.HasSuffix(network, "-tls") {
 		network += "-tls"
 	}
-	client := Client{Net: network, Dialer: &net.Dialer{Timeout: timeout}, TLSConfig: tlsConfig}
+	client := Client{Net: network, Timeout: timeout, TLSConfig: tlsConfig}
 	return client.Dial(address)
 }
 
@@ -407,9 +473,8 @@ func (c *Client) ExchangeContext(ctx context.Context, m *Msg, a string) (r *Msg,
 	} else {
 		timeout = time.Until(deadline)
 	}
+	c.Timeout = timeout
 	// not passing the context to the underlying calls, as the API does not support
-	// context. For timeouts you should set up Client.Dialer and call Client.Exchange.
-	// TODO(tmthrgd,miekg): this is a race condition.
-	c.Dialer = &net.Dialer{Timeout: timeout}
+	// context.
 	return c.Exchange(m, a)
 }
