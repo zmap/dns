@@ -98,22 +98,17 @@ func (c *Client) Dial(address string) (conn *Conn, err error) {
 			c.Conn.RemoteAddr = address
 			return &c.Conn, nil
 		}
-		var localAddr net.IP
-		if c.LocalAddr != nil {
-			localAddr = c.LocalAddr
-		} else {
+		if c.LocalAddr == nil {
 			// get preferred IP address for local machine
 			initConn, err := net.Dial(network, "8.8.8.8:53")
 			if err != nil {
 				return nil, err
 			}
-			localAddr := initConn.LocalAddr().(*net.UDPAddr)
-			initConn.Close()
-			c.LocalAddr = localAddr.IP
+			c.LocalAddr = initConn.LocalAddr().(*net.UDPAddr).IP
 		}
 		conn = new(Conn)
 		// dial from local address
-		conn.UDP, err = net.ListenPacket(network, localAddr.String()+":0")
+		conn.UDP, err = net.ListenPacket(network, c.LocalAddr.String()+":0")
 		if err != nil {
 			log.Fatal("unable to create socket", err)
 			return nil, err
