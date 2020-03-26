@@ -12,8 +12,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	reuse "github.com/kavu/go_reuseport"
 )
 
 const (
@@ -36,7 +34,7 @@ type Client struct {
 	Conn
 
 	Net          string      // if "tcp" or "tcp-tls" (DNS over TLS) a TCP query will be initiated, otherwise an UDP one (default is "" for UDP)
-	LocalAddr    string      // preferred address to dial from local machine
+	LocalAddr    net.IP      // preferred address to dial from local machine
 	ExistingConn bool        // temporary field to test if connection exists
 	UDPSize      uint16      // minimum receive buffer for UDP messages
 	TLSConfig    *tls.Config // TLS connection configuration
@@ -100,8 +98,8 @@ func (c *Client) Dial(address string) (conn *Conn, err error) {
 			c.Conn.RemoteAddr = address
 			return &c.Conn, nil
 		}
-		var localAddr string
-		if c.LocalAddr != "" {
+		var localAddr net.IP
+		if c.LocalAddr != nil {
 			localAddr = c.LocalAddr
 		} else {
 			// get preferred IP address for local machine
@@ -109,13 +107,13 @@ func (c *Client) Dial(address string) (conn *Conn, err error) {
 			if err != nil {
 				return nil, err
 			}
-			localAddr = initConn.LocalAddr().String()
+			localAddr := initConn.LocalAddr().(*net.UDPAddr)
 			initConn.Close()
-			c.LocalAddr = localAddr
+			c.LocalAddr = localAddr.IP
 		}
 		conn = new(Conn)
 		// dial from local address
-		conn.UDP, err = reuse.NewReusablePortPacketConn(network, localAddr)
+		conn.UDP, err = net.ListenPacket(network, localAddr.String()+":0")
 		if err != nil {
 			log.Fatal("unable to create socket", err)
 			return nil, err
