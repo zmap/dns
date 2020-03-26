@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -18,6 +19,9 @@ const (
 	dnsTimeout     time.Duration = 2 * time.Second
 	tcpIdleTimeout time.Duration = 8 * time.Second
 )
+
+var rePort *regexp.Regexp
+var reV6 *regexp.Regexp
 
 // A Conn represents a connection to a DNS server.
 type Conn struct {
@@ -48,6 +52,16 @@ type Client struct {
 	TsigSecret     map[string]string // secret(s) for Tsig map[<zonename>]<base64 secret>, zonename must be in canonical form (lowercase, fqdn, see RFC 4034 Section 6.2)
 	SingleInflight bool              // if true suppress multiple outstanding queries for the same Qname, Qtype and Qclass
 	group          singleflight
+}
+
+func AddZeroPortToDNSServerName(s string) string {
+	if !rePort.MatchString(s) {
+		return s + ":0"
+	} else if reV6.MatchString(s) {
+		return "[" + s + "]:0"
+	} else {
+		return s
+	}
 }
 
 // Exchange performs a synchronous UDP query. It sends the message m to the address
@@ -108,7 +122,7 @@ func (c *Client) Dial(address string) (conn *Conn, err error) {
 		}
 		conn = new(Conn)
 		// dial from local address
-		conn.UDP, err = net.ListenPacket(network, c.LocalAddr.String()+":0")
+		conn.UDP, err = net.ListenPacket(network, AddZeroPortToDNSServerName(c.LocalAddr.String()))
 		if err != nil {
 			log.Fatal("unable to create socket", err)
 			return nil, err
@@ -470,4 +484,9 @@ func (c *Client) ExchangeContext(ctx context.Context, m *Msg, a string) (r *Msg,
 	// not passing the context to the underlying calls, as the API does not support
 	// context.
 	return c.Exchange(m, a)
+}
+
+func init() {
+	rePort = regexp.MustCompile(":\\d+$")      // string ends with potential port number
+	reV6 = regexp.MustCompile("^([0-9a-f]*:)") // string starts like valid IPv6 address
 }
