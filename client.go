@@ -22,6 +22,7 @@ const (
 type Conn struct {
 	net.Conn
 	// BEGIN FAST UDP MONKEY PATCH
+	UnboundUDP bool
 	RemoteAddr net.Addr
 	// END FAST UDP MONKEY PATCH
 	UDPSize        uint16            // minimum receive buffer for UDP messages
@@ -168,6 +169,7 @@ func (c *Client) ExchangeWithConn(m *Msg, conn *Conn) (r *Msg, rtt time.Duration
 
 // BEGIN MONKEY PATCH
 func (c *Client) ExchangeWithConnTo(m *Msg, conn *Conn, addr net.Addr) (r *Msg, rtt time.Duration, err error) {
+	conn.UnboundUDP = true
 	conn.RemoteAddr = addr
 	return c.ExchangeWithConn(m, conn)
 }
@@ -335,11 +337,14 @@ func (co *Conn) Write(p []byte) (int, error) {
 	if len(p) > MaxMsgSize {
 		return 0, &Error{err: "message too large"}
 	}
-	// MONKEY PATCH
 	if pc, ok := co.Conn.(net.PacketConn); ok {
-		return pc.WriteTo(p, co.RemoteAddr)
+		// MONKEY PATCH
+		if co.UnboundUDP {
+			return pc.WriteTo(p, co.RemoteAddr)
+		}
+		// END MONKEY PATCH
+		return co.Conn.Write(p)
 	}
-	// END MONKEY PATCH
 	l := make([]byte, 2)
 	binary.BigEndian.PutUint16(l, uint16(len(p)))
 
