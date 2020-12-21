@@ -22,7 +22,6 @@ const (
 type Conn struct {
 	net.Conn
 	// BEGIN FAST UDP MONKEY PATCH
-	UDPConn    *net.PacketConn // a net.PacketConn holding the connection
 	RemoteAddr net.Addr
 	// END FAST UDP MONKEY PATCH
 	UDPSize        uint16            // minimum receive buffer for UDP messages
@@ -167,6 +166,13 @@ func (c *Client) ExchangeWithConn(m *Msg, conn *Conn) (r *Msg, rtt time.Duration
 	return r, rtt, err
 }
 
+// BEGIN MONKEY PATCH
+func (c *Client) ExchangeWithConnTo(m *Msg, conn *Conn, addr net.Addr) (r *Msg, rtt time.Duration, err error) {
+	conn.RemoteAddr = addr
+	return c.ExchangeWithConn(m, conn)
+}
+// END MONKEY PATCH
+
 func (c *Client) exchange(m *Msg, co *Conn) (r *Msg, rtt time.Duration, err error) {
 	opt := m.IsEdns0()
 	// If EDNS0 is used use that for size.
@@ -182,25 +188,13 @@ func (c *Client) exchange(m *Msg, co *Conn) (r *Msg, rtt time.Duration, err erro
 	t := time.Now()
 	// write with the appropriate write timeout
 	tw := t.Add(c.getTimeoutForRequest(c.writeTimeout()))
-	// BEGIN MONKEY PATCH
-	if co.UDPConn != nil {
-		(*co.UDPConn).SetWriteDeadline(tw)
-	} else {
-		co.SetWriteDeadline(tw)
-	}
-	// END MONKEY PATCH
+	co.SetWriteDeadline(tw)
 	if err = co.WriteMsg(m); err != nil {
 		return nil, 0, err
 	}
 
 	ta := time.Now().Add(c.getTimeoutForRequest(c.readTimeout()))
-	// BEGIN MONKEY PATCH
-	if co.UDPConn != nil {
-		(*co.UDPConn).SetReadDeadline(ta)
-	} else {
-		co.SetReadDeadline(ta)
-	}
-	// END MONKEY PATCH
+	co.SetReadDeadline(ta)
 	if _, ok := co.Conn.(net.PacketConn); ok {
 		for {
 			r, err = co.ReadMsg()
@@ -258,32 +252,21 @@ func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 		err error
 	)
 
-	// BEGIN MONKEY PATCH
-	if co.UDPConn != nil {
+	if _, ok := co.Conn.(net.PacketConn); ok {
 		if co.UDPSize > MinMsgSize {
 			p = make([]byte, co.UDPSize)
 		} else {
 			p = make([]byte, MinMsgSize)
 		}
 		n, err = co.Read(p)
-	// END MONKEY PATCH
 	} else {
-		if _, ok := co.Conn.(net.PacketConn); ok {
-			if co.UDPSize > MinMsgSize {
-				p = make([]byte, co.UDPSize)
-			} else {
-				p = make([]byte, MinMsgSize)
-			}
-			n, err = co.Read(p)
-		} else {
-			var length uint16
-			if err := binary.Read(co.Conn, binary.BigEndian, &length); err != nil {
-				return nil, err
-			}
-
-			p = make([]byte, length)
-			n, err = io.ReadFull(co.Conn, p)
+		var length uint16
+		if err := binary.Read(co.Conn, binary.BigEndian, &length); err != nil {
+			return nil, err
 		}
+
+		p = make([]byte, length)
+		n, err = io.ReadFull(co.Conn, p)
 	}
 	if err != nil {
 		return nil, err
@@ -304,12 +287,6 @@ func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 
 // Read implements the net.Conn read method.
 func (co *Conn) Read(p []byte) (n int, err error) {
-	// BEGIN MONKEY PATCH
-	if co.UDPConn != nil {
-		n, _, err := (*co.UDPConn).ReadFrom(p)
-		return n, err
-	}
-	// END MONKEY PATCH
 	if co.Conn == nil {
 		return 0, ErrConnEmpty
 	}
@@ -358,16 +335,11 @@ func (co *Conn) Write(p []byte) (int, error) {
 	if len(p) > MaxMsgSize {
 		return 0, &Error{err: "message too large"}
 	}
-	// BEGIN MONKEY PATCH FAST UDP
-	if co.UDPConn != nil {
-		return (*co.UDPConn).WriteTo(p, co.RemoteAddr)
+	// MONKEY PATCH
+	if pc, ok := co.Conn.(net.PacketConn); ok {
+		return pc.WriteTo(p, co.RemoteAddr)
 	}
-	// END MONKEY PATCH FAST UDP
-
-	if _, ok := co.Conn.(net.PacketConn); ok {
-		return co.Conn.Write(p)
-	}
-
+	// END MONKEY PATCH
 	l := make([]byte, 2)
 	binary.BigEndian.PutUint16(l, uint16(len(p)))
 
