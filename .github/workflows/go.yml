@@ -1,4 +1,4 @@
-name: Go
+name: Build, Test, Release Tag
 on:
   push:
     branches:
@@ -29,3 +29,11 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Release Tag
+      id: tag_version
+      uses: mathieudutour/github-tag-action@v6.0
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        dry_run: true
+        default_bump: patch
