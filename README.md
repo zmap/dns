@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/miekg/dns.svg?branch=master)](https://github.com/zmap/dns/actions/workflows/go.yml/badge.svg)
+[![Build Status](https://github.com/zmap/dns/actions/workflows/go.yml/badge.svg)](https://github.com/zmap/dns/actions/workflows/go.yml/badge.svg)
 
 # `zmap/dns` Fork of `miekg/dns`
 
