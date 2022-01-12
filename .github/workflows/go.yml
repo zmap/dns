@@ -2,7 +2,7 @@ name: Build, Test, Release Tag
 on:
   push:
     branches:
-      - zdns
+      - master
   pull_request:
     branches:
       - master
@@ -43,7 +43,6 @@ jobs:
       uses: mathieudutour/github-tag-action@v6.0
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        dry_run: true
         default_bump: patch
         default_prerelease_bump: patch
-        release_branches: master,main,zdns
+        release_branches: master
