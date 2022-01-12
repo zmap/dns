@@ -1,7 +1,8 @@
-[![Build Status](https://travis-ci.org/miekg/dns.svg?branch=master)](https://travis-ci.org/miekg/dns)
-[![Code Coverage](https://img.shields.io/codecov/c/github/miekg/dns/master.svg)](https://codecov.io/github/miekg/dns?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/miekg/dns)](https://goreportcard.com/report/miekg/dns)
-[![](https://godoc.org/github.com/miekg/dns?status.svg)](https://godoc.org/github.com/miekg/dns)
+[![Build Status](https://github.com/zmap/dns/actions/workflows/go.yml/badge.svg)](https://github.com/zmap/dns/actions/workflows/go.yml/badge.svg)
+
+# `zmap/dns` Fork of `miekg/dns`
+
+This repo was originally forked from `miekg/dns` to allow for passing connections between various DNS requests. This was required for the ZDNS project, since there are many requests to be made and reusing the same connection greatly increases the efficiency of the library.
 
 # Alternative (more granular) approach to a DNS library
 
