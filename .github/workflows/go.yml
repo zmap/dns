@@ -45,4 +45,5 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         dry_run: true
         default_bump: patch
-        default_prerelease_bump: false
+        default_prerelease_bump: patch
+        release_branches: master,main,zdns
