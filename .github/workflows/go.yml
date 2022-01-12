@@ -30,6 +30,13 @@ jobs:
     - name: Test
       run: go test -v ./...
 
+  release:
+    name: Release Next Tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ 1.17.x ]
+    steps:
     - name: Release Tag
       id: tag_version
       uses: mathieudutour/github-tag-action@v6.0
