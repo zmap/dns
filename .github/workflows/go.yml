@@ -31,6 +31,7 @@ jobs:
       run: go test -v ./...
 
   release:
+    needs: build
     name: Release Next Tag
     runs-on: ubuntu-latest
     strategy:
