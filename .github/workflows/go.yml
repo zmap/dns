@@ -31,6 +31,8 @@ jobs:
       run: go test -v ./...
 
   release:
+    # Don't tag until the PR is merged. We do, however, want the first job to run so that we check build/test integrity.
+    if: ${{ github.event_name != 'pull_request' }}
     needs: build
     name: Release Next Tag
     runs-on: ubuntu-latest
