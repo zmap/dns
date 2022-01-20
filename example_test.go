@@ -6,7 +6,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/miekg/dns"
+	"github.com/spencerdrak/dns"
 )
 
 // Retrieve the MX records for miek.nl.
