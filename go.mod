@@ -1,4 +1,4 @@
-module github.com/miekg/dns
+module github.com/zmap/dns
 
 go 1.14
 

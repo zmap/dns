@@ -3,6 +3,12 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/miekg/dns)](https://goreportcard.com/report/miekg/dns)
 [![](https://godoc.org/github.com/miekg/dns?status.svg)](https://godoc.org/github.com/miekg/dns)
 
+# ZMAP Fork of `miekg/dns`
+
+This library contains the fork of `miekg/dns` maintained by the ZMAP team. The ZDNS requires some changes to be made to this library to ensure performance, namely, reuse of a UDP socket between requests. 
+
+This module has also been renamed to `github.com/zmap/dns` to ensure that consuming tools (mainly, ZDNS) `go get`- and `go install`-able. See `REBASING.md` for information on how to pull updates from the upstream `miekg/dns` library.
+
 # Alternative (more granular) approach to a DNS library
 
 > Less is more.
