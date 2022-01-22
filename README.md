@@ -3,6 +3,12 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/miekg/dns)](https://goreportcard.com/report/miekg/dns)
 [![](https://godoc.org/github.com/miekg/dns?status.svg)](https://godoc.org/github.com/miekg/dns)
 
+# ZMAP Fork of `miekg/dns`
+
+This library contains the fork of `miekg/dns` maintained by the ZMAP team. The ZDNS requires some changes to be made to this library to ensure performance, namely, reuse of a UDP socket between requests. 
+
+This module has also been renamed to `github.com/zmap/dns` to ensure that consuming tools (mainly, ZDNS) `go get`- and `go install`-able. See `REBASING.md` for information on how to pull updates from the upstream `miekg/dns` library.
+
 # Alternative (more granular) approach to a DNS library
 
 > Less is more.
@@ -70,6 +76,14 @@ A not-so-up-to-date-list-that-may-be-actually-current:
 * https://router7.org/
 * https://github.com/fortio/dnsping
 * https://github.com/Luzilla/dnsbl_exporter
+* https://github.com/bodgit/tsig
+* https://github.com/v2fly/v2ray-core (test only)
+* https://kuma.io/
+* https://www.misaka.io/services/dns
+* https://ping.sx/dig
+* https://fleetdeck.io/
+* https://github.com/markdingo/autoreverse
+
 
 Send pull request if you want to be listed here.
 
@@ -166,6 +180,9 @@ Example programs can be found in the `github.com/miekg/exdns` repository.
 * 7873 - Domain Name System (DNS) Cookies
 * 8080 - EdDSA for DNSSEC
 * 8499 - DNS Terminology
+* 8659 - DNS Certification Authority Authorization (CAA) Resource Record
+* 8914 - Extended DNS Errors
+* 8976 - Message Digest for DNS Zones (ZONEMD RR)
 
 ## Loosely Based Upon
 
