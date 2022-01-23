@@ -3,8 +3,10 @@ on:
   push:
     branches:
       - zdns
+      - master
   pull_request:
     branches:
+      - zdns
       - master
 jobs:
   build:
@@ -29,13 +31,8 @@ jobs:
     - name: Test
       run: go test -v ./...
 
-#TODO: handle case where we don't update miekg in between
-
+  # Only tag releases off the zdns branch
   release:
-    # Don't tag until the PR is merged. We do, however, want the first job to run so that we check build/test integrity.
-    # The logic here is a bit weird. We only kick off this action on pushes to master and PRs to master. 
-    # So we can safely use a negative check for the pr event to ensure we're not releasing on PRs.
-    # If other events are used to trigger the overall job, see
     if: ${{ github.ref == 'refs/heads/zdns' }}
     needs: build
     name: Release Next Tag
@@ -48,6 +45,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        ref: "refs/heads/zdns"
     - name: Get Latest Tag for zdns
       id: get_tag
       shell: bash
@@ -56,15 +54,13 @@ jobs:
         echo ${LATEST_TAG}; \
         if [[ "${LATEST_TAG}" == *-zdns-* ]] || [[ "${LATEST_TAG}" == *-zdns ]]; then \
             if [[ "${LATEST_TAG}" == *-zdns ]]; then \
-                echo "modifying tag to match new syntax"; \
+                echo "modifying LATEST_TAG var to match new syntax"; \
                 LATEST_TAG="${LATEST_TAG}-0"; \
             fi; \
             echo "already tagged a release here, using next version"; \
             ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|'); \
             ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1)); \
-            echo $ZDNS_RELEASE_NUM; \
             TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|'); \
-            echo $TAG_PORTION; \
             ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"; \
             echo $ZDNS_TAG; \
         else \
@@ -80,4 +76,5 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         custom_tag: ${{ steps.get_tag.outputs.ZDNS_TAG }}
         release_branches: zdns
+        tag_prefix: ""
         dry_run: true
