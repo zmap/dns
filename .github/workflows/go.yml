@@ -64,7 +64,7 @@ jobs:
             ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"; \
             echo $ZDNS_TAG; \
         else \
-            echo "cleared hot"; \
+            echo "creating new ZDNS tag"; \
             ZDNS_TAG="${LATEST_TAG}-zdns-0"; \
             echo $ZDNS_TAG; \
         fi; \
