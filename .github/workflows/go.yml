@@ -51,6 +51,7 @@ jobs:
       shell: bash
       run: |
         LATEST_TAG=$(git tag --merged | sort -V | tail -n 1); \
+        echo ${LATEST_TAG}; \
         if [[ "${LATEST_TAG}" == *-zdns-* ]]; then \
             echo "already tagged a release here, using next version"; \
             ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|'); \
