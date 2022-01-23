@@ -45,6 +45,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        ref: "refs/heads/zdns"
     - name: Get Latest Tag for zdns
       id: get_tag
       shell: bash
@@ -59,9 +60,7 @@ jobs:
             echo "already tagged a release here, using next version"; \
             ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|'); \
             ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1)); \
-            echo $ZDNS_RELEASE_NUM; \
             TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|'); \
-            echo $TAG_PORTION; \
             ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"; \
             echo $ZDNS_TAG; \
         else \
