@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ 1.15.x, 1.16.x ]
+        go: [ 1.17.x ]
     steps:
 
     - name: Set up Go
@@ -34,17 +34,14 @@ jobs:
     # The logic here is a bit weird. We only kick off this action on pushes to master and PRs to master. 
     # So we can safely use a negative check for the pr event to ensure we're not releasing on PRs.
     # If other events are used to trigger the overall job, see
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' and ${GITHUB_REF_NAME} != 'master' }}
     needs: build
     name: Release Next Tag
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ 1.15.x, 1.16.x ]
+        go: [ 1.17.x ]
     steps:
-    - name: Check branch
-      shell: bash
-      run: echo ${GITHUB_REF_NAME}
     - name: Release Tag
       id: tag_version
       uses: mathieudutour/github-tag-action@v6.0
