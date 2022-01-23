@@ -48,7 +48,7 @@ jobs:
       id: get_tag
       shell: bash
       run: |
-        LATEST_MIEKG_TAG=$(git tag --merged master | sort -V | tail -n 1); \
+        LATEST_MIEKG_TAG=$(git tag --merged refs/heads/master | sort -V | tail -n 1); \
         ZDNS_TAG="${LATEST_MIEKG_TAG}-zdns"; \
         echo $ZDNS_TAG; \
         echo "::set-output name=ZDNS_TAG::${ZDNS_TAG}";
