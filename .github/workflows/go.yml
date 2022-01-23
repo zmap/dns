@@ -54,7 +54,7 @@ jobs:
         echo ${LATEST_TAG}; \
         if [[ "${LATEST_TAG}" == *-zdns-* ]] || [[ "${LATEST_TAG}" == *-zdns ]]; then \
             if [[ "${LATEST_TAG}" == *-zdns ]]; then \
-                echo "modifying tag to match new syntax"; \
+                echo "modifying LATEST_TAG var to match new syntax"; \
                 LATEST_TAG="${LATEST_TAG}-0"; \
             fi; \
             echo "already tagged a release here, using next version"; \
