@@ -51,17 +51,19 @@ jobs:
       shell: bash
       run: |
         LATEST_TAG=$(git tag --merged | sort -V | tail -n 1)
-        if [[ "${LATEST_TAG}" == *-zdns-* ]]; 
-            then echo "already tagged a release here, using next version"
-            ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|')
-            ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1))
-            TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|')
-            ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"
-            echo $ZDNS_TAG
+        if [[ "${LATEST_TAG}" == *-zdns-* ]]; then 
+            echo "already tagged a release here, using next version";
+            ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|');
+            ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1));
+            echo $ZDNS_RELEASE_NUM
+            TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|');
+            echo $TAG_PORTION
+            ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}";
+            echo $ZDNS_TAG;
         else 
-            echo "cleared hot"
-            ZDNS_TAG="${LATEST_TAG}-zdns-0"
-            echo $ZDNS_TAG
+            echo "cleared hot";
+            ZDNS_TAG="${LATEST_TAG}-zdns-0";
+            echo $ZDNS_TAG;
         fi;
         echo "::set-output name=ZDNS_TAG::${ZDNS_TAG}";
     - name: Release Tag
