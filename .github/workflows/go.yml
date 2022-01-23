@@ -29,6 +29,8 @@ jobs:
     - name: Test
       run: go test -v ./...
 
+#TODO: handle case where we don't update miekg in between
+
   release:
     # Don't tag until the PR is merged. We do, however, want the first job to run so that we check build/test integrity.
     # The logic here is a bit weird. We only kick off this action on pushes to master and PRs to master. 
@@ -48,9 +50,19 @@ jobs:
       id: get_tag
       shell: bash
       run: |
-        LATEST_MIEKG_TAG=$(git tag --merged refs/heads/master | sort -V | tail -n 1); \
-        ZDNS_TAG="${LATEST_MIEKG_TAG}-zdns"; \
-        echo $ZDNS_TAG; \
+        LATEST_TAG=$(git tag --merged | sort -V | tail -n 1)
+        if [[ "${LATEST_TAG}" == *-zdns-* ]]; 
+            then echo "already tagged a release here, using next version";
+            ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|')
+            ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1))
+            TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|')
+            ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"
+            echo $ZDNS_TAG
+        else 
+            echo "cleared hot";
+            ZDNS_TAG="${LATEST_TAG}-zdns-0"
+            echo $ZDNS_TAG
+        fi;
         echo "::set-output name=ZDNS_TAG::${ZDNS_TAG}";
     - name: Release Tag
       id: tag_version
