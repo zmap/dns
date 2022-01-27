@@ -1,13 +1,20 @@
 name: Go
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - zdns
+      - master
+  pull_request:
+    branches:
+      - zdns
+      - master
 jobs:
-
   build:
     name: Build and Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ 1.15.x, 1.16.x ]
+        go: [ 1.17.x ]
     steps:
 
     - name: Set up Go
@@ -23,3 +30,50 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+  # Only tag releases off the zdns branch
+  release:
+    if: ${{ github.ref == 'refs/heads/zdns' }}
+    needs: build
+    name: Release Next Tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ 1.17.x ]
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        ref: "refs/heads/zdns"
+    - name: Get Latest Tag for zdns
+      id: get_tag
+      shell: bash
+      run: |
+        LATEST_TAG=$(git tag --merged | sort -V | tail -n 1); \
+        echo ${LATEST_TAG}; \
+        if [[ "${LATEST_TAG}" == *-zdns-* ]] || [[ "${LATEST_TAG}" == *-zdns ]]; then \
+            if [[ "${LATEST_TAG}" == *-zdns ]]; then \
+                echo "modifying LATEST_TAG var to match new syntax"; \
+                LATEST_TAG="${LATEST_TAG}-0"; \
+            fi; \
+            echo "already tagged a release here, using next version"; \
+            ZDNS_RELEASE_NUM=$(echo ${LATEST_TAG} | sed 's|.*-zdns-\(.*\)|\1|'); \
+            ZDNS_RELEASE_NUM=$((ZDNS_RELEASE_NUM+1)); \
+            TAG_PORTION=$(echo ${LATEST_TAG} | sed 's|\(.*\)-zdns-.*|\1|'); \
+            ZDNS_TAG="${TAG_PORTION}-zdns-${ZDNS_RELEASE_NUM}"; \
+            echo $ZDNS_TAG; \
+        else \
+            echo "creating new ZDNS tag"; \
+            ZDNS_TAG="${LATEST_TAG}-zdns-0"; \
+            echo $ZDNS_TAG; \
+        fi; \
+        echo "::set-output name=ZDNS_TAG::${ZDNS_TAG}";
+    - name: Release Tag
+      id: tag_version
+      uses: mathieudutour/github-tag-action@v6.0
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        custom_tag: ${{ steps.get_tag.outputs.ZDNS_TAG }}
+        release_branches: zdns
+        tag_prefix: ""
