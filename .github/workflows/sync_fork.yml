@@ -12,18 +12,12 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v4
 
-      - name: Set up Git and pull latest changes
-        run: |
-          git pull
-
-      - name: Add upstream remote and fetch
-        run: |
-          git remote add upstream https://github.com/miekg/dns.git
-          git fetch upstream
-
       - name: Check for new changes
         id: check_updates
         run: |
+          git pull
+          git remote add upstream https://github.com/miekg/dns.git
+          git fetch upstream
           UPDATES=$(git rev-list --count HEAD..upstream/master)
           if [ "$UPDATES" -gt 0 ]; then
             echo "There are $UPDATES new upstream changes available."
