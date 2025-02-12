@@ -10,7 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
+        with:
+            fetch-depth: 0  # Fetch all history so that we can compare with upstream
 
       - name: Check for new changes
         id: check_updates
