@@ -46,6 +46,7 @@ jobs:
           branch: sync-upstream-$(date +%Y%m%d)
           delete-branch: true
           title: "Sync miekg/dns upstream changes"
-          body: "Automated PR to sync upstream changes from miekg/dns. Please review and merge if appropriate."
+          body: "Automated PR to sync upstream changes from miekg/dns. Please review and merge if appropriate.
+                  ALERT - If upstream tagged a new version, you'll need to tag manually after merging this PR."
           labels: "sync, automated"
           assignees: "phillip-stephens"
