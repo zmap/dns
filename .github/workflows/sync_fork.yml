@@ -10,16 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
             fetch-depth: 0  # Fetch all history so that we can compare with upstream
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/miekg/dns.git
+          git fetch upstream
+
 
       - name: Check for new changes
         id: check_updates
         run: |
-          git pull
-          git remote add upstream https://github.com/miekg/dns.git
-          git fetch upstream
           UPDATES=$(git rev-list --count HEAD..upstream/master)
           if [ "$UPDATES" -gt 0 ]; then
             echo "There are $UPDATES new upstream changes available."
