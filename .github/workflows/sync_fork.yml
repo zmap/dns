@@ -19,7 +19,6 @@ jobs:
           git remote add upstream https://github.com/miekg/dns.git
           git fetch upstream
 
-
       - name: Check for new changes
         id: check_updates
         run: |
