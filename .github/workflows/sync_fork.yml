@@ -14,8 +14,6 @@ jobs:
 
       - name: Set up Git and pull latest changes
         run: |
-          git config --global user.name 'GitHub Actions'
-          git config --global user.email '
           git pull
 
       - name: Add upstream remote and fetch
