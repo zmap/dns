@@ -41,11 +41,14 @@ jobs:
 
           git merge --no-edit --strategy-option=theirs upstream/master || (git merge --abort && echo "merging was unsuccessful, aborting" && exit 1)
 
+      - name: Set branch name
+        run: echo "BRANCH_NAME=sync-upstream-$(date +%Y%m%d)" >> $GITHUB_ENV
+
       - name: Open Pull Request
         if: env.updates_available == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          branch: sync-upstream-$(date +%Y%m%d)
+          branch: ${{ env.BRANCH_NAME }}
           delete-branch: true
           title: "Sync miekg/dns upstream changes"
           body: "Automated PR to sync upstream changes from miekg/dns. Please review and merge if appropriate.
