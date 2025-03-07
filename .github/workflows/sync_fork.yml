@@ -36,6 +36,9 @@ jobs:
         # Merge upstream changes, preferring upstream changes in case of conflicts. This way we can resolve conflicts with master during the PR review process.
         run: |
           echo "Merging upstream changes"
+          git config --global user.email "phillip@cs.stanford.edu"
+          git config --global user.name "Phillip Stephens"
+
           git merge --no-edit --strategy-option=theirs upstream/master || (git merge --abort && echo "merging was unsuccessful, aborting" && exit 1)
 
       - name: Open Pull Request
