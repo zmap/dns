@@ -4,6 +4,8 @@ go 1.22.0
 
 toolchain go1.24.0
 
+replace github.com/miekg/dns => ./
+
 require (
 	golang.org/x/net v0.35.0
 	golang.org/x/sync v0.11.0
