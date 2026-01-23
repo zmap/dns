@@ -15,6 +15,7 @@ jobs:
             fetch-depth: 0  # Fetch all history so that we can compare with upstream
 
       - name: Check for existing sync PR
+        id: pr_guard
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -28,14 +29,20 @@ jobs:
             echo "Existing sync PR found:"
             echo "$EXISTING_PR"
             echo "Stopping workflow to avoid piling up PRs."
+            echo "skip_sync=true" >> "$GITHUB_OUTPUT"
             exit 0
+          else
+            echo "No existing sync PR found. Continuing."
+            echo "skip_sync=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Add upstream remote and fetch
+        if: steps.pr_guard.outputs.skip_sync != 'true'
         run: |
           git remote add upstream https://github.com/miekg/dns.git
           git fetch upstream
 
       - name: Check for new changes
+        if: steps.pr_guard.outputs.skip_sync != 'true'
         id: check_updates
         run: |
           UPDATES=$(git rev-list --count HEAD..upstream/master)
@@ -48,7 +55,7 @@ jobs:
           fi
 
       - name: Create Sync Branch
-        if: env.updates_available == 'true'
+        if: env.updates_available == 'true' && steps.pr_guard.outputs.skip_sync != 'true'
         # Merge upstream changes, preferring upstream changes in case of conflicts. This way we can resolve conflicts with master during the PR review process.
         run: |
           echo "Merging upstream changes"
@@ -58,10 +65,11 @@ jobs:
           git merge --no-edit --strategy-option=theirs upstream/master || (git merge --abort && echo "merging was unsuccessful, aborting" && exit 1)
 
       - name: Set branch name
+        if: env.updates_available == 'true' && steps.pr_guard.outputs.skip_sync != 'true'
         run: echo "BRANCH_NAME=sync-upstream-$(date +%Y%m%d)" >> $GITHUB_ENV
 
       - name: Open Pull Request
-        if: env.updates_available == 'true'
+        if: env.updates_available == 'true' && steps.pr_guard.outputs.skip_sync != 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           branch: ${{ env.BRANCH_NAME }}
