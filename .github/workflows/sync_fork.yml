@@ -9,6 +9,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+            fetch-depth: 0  # Fetch all history so that we can compare with upstream
+
       - name: Check for existing sync PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -25,11 +30,6 @@ jobs:
             echo "Stopping workflow to avoid piling up PRs."
             exit 0
           fi
-      - name: Checkout the repository
-        uses: actions/checkout@v4
-        with:
-            fetch-depth: 0  # Fetch all history so that we can compare with upstream
-
       - name: Add upstream remote and fetch
         run: |
           git remote add upstream https://github.com/miekg/dns.git
