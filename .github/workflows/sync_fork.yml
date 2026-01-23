@@ -9,6 +9,22 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Check for existing sync PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_PR=$(gh pr list \
+            --state open \
+            --search "Sync miekg/dns" \
+            --json title \
+            --jq '.[] | select(.title | startswith("Sync miekg/dns")) | .title')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Existing sync PR found:"
+            echo "$EXISTING_PR"
+            echo "Stopping workflow to avoid piling up PRs."
+            exit 0
+          fi
       - name: Checkout the repository
         uses: actions/checkout@v4
         with:
